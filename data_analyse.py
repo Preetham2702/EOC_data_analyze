@@ -9,7 +9,7 @@ import os
 import csv
 
 
-Folder_path = "/Users/preethamreddy/Desktop/Data_analyse LAMP Lab/sample1"
+Folder_path = "/Users/preethamreddy/Desktop/Data_analyse LAMP Lab/EOC_data_analyze/AR_80_Top"
 folder = Path(Folder_path)
 if not folder.exists():
     raise FileNotFoundError("Folder not found")
@@ -41,7 +41,6 @@ def image_data_matrix(csv_file):
     
     matrix = np.array(rows)
     #np.set_printoptions(threshold=np.inf, linewidth=np.inf, suppress=False) # prints all lines
-    print("file" , csv_file)
     return matrix
 
 
@@ -53,81 +52,73 @@ def MP_area(matrix, threshold):
     
 
 def max_val_matrix(matrix, threshold):
-    if matrix is None or matrix.size == 0:
-        return 0, -1, -1
+    max_val = 0
+    max_r = -1
+    max_c = -1
 
     rows = len(matrix)
-    cols = len(matrix[0])
-    max_val = 0
-    max_row = -1
-    max_col = -1
+    cols = len(matrix[0]) if rows > 0 else 0
 
     for i in range(rows):
         for j in range(cols):
-            value = matrix[i][j]
-            # check each and every value
-            if value > threshold and value > max_val:
-                max_val = value
-                max_row = i
-                max_col = j
-
-    # If we never found any value > threshold
-    if max_row == -1:
-        return 0, -1, -1
-
-    print(f"Max value: {max_val} (Row: {max_row}, Col: {max_col})")
-    return max_val, max_row, max_col
-
+            val = matrix[i][j]
+            if val > threshold and val > max_val:
+                max_val = val
+                max_r = i
+                max_c = j
+    # print(f"max_val: {max_val}, max_r: {max_r}, max_c: {max_c}")
+    return max_val, max_r, max_c
     
-# def neighbours_max_value(matrix, center_row, center_col,max_val):
-#     if max_val == 0 or center_row == -1 or center_col == -1:
-#         return []
+def neighbours_of_max_value(matrix, max_val, center_row, center_col):
+    if center_row == -1 or center_col == -1:
+        return []
 
-#     rows = len(matrix)
-#     cols = len(matrix[0])
-#     neighbours = []
+    rows = len(matrix)
+    cols = len(matrix[0])
+    neighbours = []
 
-#     for i in range(center_row - 1, center_row + 2):   # row-1, row, row+1
-#         if 0 <= i < rows:
-#             row_vals = []
-#             for j in range(center_col - 1, center_col + 2):  # col-1, col, col+1
-#                 if 0 <= j < cols:
-#                     row_vals.append(matrix[i][j])
-#             neighbours.append(row_vals)
-#     print(neighbours)
-#     return neighbours
+    for i in range(center_row - 1, center_row + 2):   # r-1, r, r+1
+        if 0 <= i < rows:
+            row_vals = []
+            for j in range(center_col - 1, center_col + 2):  # c-1, c, c+1
+                if 0 <= j < cols:
+                    row_vals.append(matrix[i][j])
+            neighbours.append(row_vals)
+    # debug
+    # print(neighbours)
+    return neighbours
                 
-# def avg_mp_temp(neighbours):
-#     total = 0
-#     count = 0
-#     avg_temp = 0
-#     for i in range(len(neighbours)):
-#         for j in range(len(neighbours[i])):
-#             total += neighbours[i][j]
-#             count += 1
 
-#     if count == 0:
-#         return 950.0
+def avg_mp_temp(neighbours):
+    total = 0
+    count = 0
+    avg_temp = 0
+    for i in range(len(neighbours)):
+        for j in range(len(neighbours[i])):
+            total += neighbours[i][j]
+            count += 1
 
-#     avg_temp = round(total / count, 1)
-#     print(avg_temp)
-#     return avg_temp
+    if count == 0:
+        return 950.0
+    # print(count)
+    avg_temp = round(total / count, 1)
+    # print(avg_temp)
+    return avg_temp
 
 
-
-def avg_above_threshold(matrix, threshold):
-    # Convert to NumPy array for fast filtering (optional)
-    arr = np.array(matrix)
+# def avg_above_threshold(matrix, threshold):
+#     # Convert to NumPy array for fast filtering (optional)
+#     arr = np.array(matrix)
     
-    # Filter values greater than threshold
-    values_above = arr[arr > threshold]
+#     # Filter values greater than threshold
+#     values_above = arr[arr > threshold]
 
-    if len(values_above) == 0:
-        return 950.0  # default if no values above threshold
+#     if len(values_above) == 0:
+#         return 950.0  # default if no values above threshold
     
-    avg_val = round(values_above.mean(), 1)
-    print(avg_val)
-    return avg_val
+#     avg_val = round(values_above.mean(), 1)
+#     print(avg_val)
+#     return avg_val
 
 def write_area_and_avg_csv(csv_files, threshold):
     os.makedirs("mp_area", exist_ok=True)
@@ -145,22 +136,23 @@ def write_area_and_avg_csv(csv_files, threshold):
             mat = image_data_matrix(csv_path)
             time_sec = (idx + 1) / 27
 
-            # Skip or handle empty matrix safely
             if mat is None or mat.size == 0:
                 mp_val = 0
-                avg_val = 950
+                avg_val = 950.0
+                max_val = 0.0
             else:
                 mp_val = MP_area(mat, threshold)
-                max_val, r, c = max_val_matrix(mat, threshold)
-                neigh = neighbours_max_value(mat, r, c, max_val)
+                max_val, r, c =  max_val_matrix(mat, threshold)
+                neigh = neighbours_of_max_value(mat,max_val, r, c)
                 avg_val = avg_mp_temp(neigh)
 
-            # Write each frame result
+
+            # Write results
             area_w.writerow([f"{time_sec:.3f}", mp_val])
             avg_w.writerow([f"{time_sec:.3f}", avg_val])
 
-            # Optional debug print
-            print(f"{csv_path.name}: max={max_val:.1f}, avg={avg_val:.1f}")
+            #print(f"{csv_path.name}: max={max_val:.1f}, avg={avg_val:.1f}")
+    print("wrote values sucessfully")
 
 # lightweight smoothing to make contours smooth
 def smooth_matrix(matrix, passes=2):
@@ -284,9 +276,11 @@ if __name__ == "__main__":
     csv_files = sorted(folder.glob("*.csv"))
     print(f"found {len(csv_files)} csv files in {folder}")
     write_area_and_avg_csv(csv_files, threshold)
+    graphs()
     # export_isotherm_video_fast(Folder_path, out_video_path="isotherm_video.mp4", fps=8, vmin=1550, vmax=2000, cmap="inferno")
-    # graphs()
+
     # matrix  = image_data_matrix(csv_files[0])
     # max_val,r, c = max_val_matrix(matrix, threshold)
-    # neighbours = neighbours_max_value(matrix, r, c,max_val)
+    # neighbours = neighbours_of_max_value(matrix, r, c,max_val)
     # avg_mp_temp(neighbours)
+    
